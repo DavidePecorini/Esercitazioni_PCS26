@@ -1,21 +1,28 @@
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 #include <iostream> 
 #include <cmath> 
 #include "gradiente_coniugato.hpp" 
 
-bool singolo_test(unsigned int n, const double tol, int id_test)
+double cond(const Eigen::MatrixXd& A)
+{
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(A);
+  Eigen::VectorXd singularValuesA = svd.singularValues();
+  return singularValuesA.maxCoeff() / singularValuesA.minCoeff();
+}
+
+
+int singolo_test(unsigned int n, const double tol, int id_test)
 {
 	Eigen::MatrixXd B = Eigen::MatrixXd::Random(n,n);
 	
-	// Scartiamo le matrici quasi singolari 
-	if (std::abs(B.determinant()) < tol)
+	// Scartiamo le matrici con condizionamento elevato 
+	// Cond(A) = Cond(B^T B) = cond(B)^2 quindi usiamo 1e5 per avere cond(A) < 1.0e10
+	if (cond(B) > 1.0e5) 
 	{
-		return true;
+		return -1;
 	}
 	
 	Eigen::MatrixXd A = B.transpose() * B;
-	// Aggiungo una perturbazione sulla diagonale per garantire un buon condizionamento
-	A += 1e-3 * Eigen::MatrixXd::Identity(n, n);
 	Eigen::VectorXd x_ex = Eigen::VectorXd::Ones(n);
 	Eigen::VectorXd b = A * x_ex;
 	Eigen::VectorXd x_0 = Eigen::VectorXd::Zero(n);
@@ -28,11 +35,11 @@ bool singolo_test(unsigned int n, const double tol, int id_test)
 	const double soglia_test = 1.0e-10;
 	
 	if (err_rel < soglia_test) {
-		return true;
+		return 1;
 	} else {
-		std::cerr << "Test #" << id_test <<  " fallito! Err rel: " << err_rel << ", It: " 
-		<< it << std::endl;
-		return false;
+		std::cerr << "Test #" << id_test <<  "(dim " << n << "x" << n << "): fallito! Err rel: "
+				  << err_rel << ", It: " << it << std::endl;
+		return 0;
 	}
 }
 
@@ -40,26 +47,29 @@ int main(int argc, char **argv)
 {
 
 	const double tol = 1.0e-14;
-	const int n_matrici = 100;
-	const unsigned int n = 100;
+	unsigned int n_max = 202;
 	int test_passati = 0;
+	int test_skippati = 0;
+	unsigned int i = 0;
 	
-	std::cout << "stress test: " << n_matrici << " matrici "  
-			  << n << "x" << n << ", tol = " << tol << "\n\n";
+	std::cout << "stress test: matrici da 10x10 a "
+			  << n_max << "x" << n_max << ", tol = " << tol << "\n\n";
 	
-	for (unsigned int i = 0; i < n_matrici; i++) {
-		
-		if(singolo_test(n, tol, i+1)) {
+	for (unsigned int n = 10; n <= n_max; n += 4)
+	{
+		int esito = singolo_test(n, tol, ++i);
+		if (esito == 1) {
 			test_passati++;
-		}
-		else {
-			std::cerr << "Test interrotto" << std::endl;
+		} else if (esito == -1) {
+			test_skippati++;
+		} else {
+			std::cerr << "Test interrotto! Matrice di dimensione " << n << "x" << n << std::endl;
 			return EXIT_FAILURE;
 		}
 	}
 	
-	std::cout << test_passati << "/" << n_matrici << " ok!" << std::endl;
-	
+	std::cout << test_passati  << "/" << (test_passati + test_skippati) << " passati" << std::endl;
+	std::cout << test_skippati << "/" << (test_passati + test_skippati) << " skippati" << std::endl;
 	
 	return EXIT_SUCCESS;
 }

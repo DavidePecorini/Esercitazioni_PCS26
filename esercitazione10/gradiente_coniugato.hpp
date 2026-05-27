@@ -1,4 +1,4 @@
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 
 
 std::pair<Eigen::VectorXd, unsigned int> gradiente_coniugato(const Eigen::MatrixXd& A, 
@@ -44,7 +44,8 @@ std::pair<Eigen::VectorXd, unsigned int> gradiente_coniugato(const Eigen::Matrix
 		
 		
 		// Calcolo beta e aggiorno la direzione di discesa 
-		double beta = p.dot(A * res) / p_scalare_Ap;
+		// Sfrutto l'aver già calcolato A * p e la commutatività del prodotto scalare
+		double beta = res.dot(Ap) / p_scalare_Ap;
 		p = res - beta * p;
 		
 		// Aggiorno il contatore
